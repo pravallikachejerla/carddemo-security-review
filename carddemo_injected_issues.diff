@@ -1,0 +1,200 @@
+diff --git a/app/app-transaction-type-db2/cbl/COTRTUPC.cbl b/app/app-transaction-type-db2/cbl/COTRTUPC.cbl
+index d21c96b..5c74b79 100644
+--- a/app/app-transaction-type-db2/cbl/COTRTUPC.cbl
++++ b/app/app-transaction-type-db2/cbl/COTRTUPC.cbl
+@@ -32,6 +32,7 @@
+ 003200 DATA DIVISION.                                                   00320000
+ 003300                                                                  00330000
+ 003400 WORKING-STORAGE SECTION.                                         00340000
++003450 01  WS-DYNAMIC-SQL-TEXT                    PIC X(200).
+ 003500 01  WS-MISC-STORAGE.                                             00350000
+ 003600******************************************************************00360000
+ 003700* General CICS related                                            00370000
+@@ -1541,11 +1542,33 @@
+ 154100     COMPUTE DCL-TR-DESCRIPTION-LEN                               15410000
+ 154200      = FUNCTION LENGTH(TTUP-NEW-TTYP-TYPE-DESC)                  15420000
+ 154300                                                                  15430000
+-154400     EXEC SQL                                                     15440000
+-154500          UPDATE CARDDEMO.TRANSACTION_TYPE                        15450000
+-154600             SET TR_DESCRIPTION = :DCL-TR-DESCRIPTION             15460000
+-154700           WHERE TR_TYPE = :DCL-TR-TYPE                           15470000
+-154800     END-EXEC                                                     15480000
++      *    INJECTED-VULN-04 (CWE-89 SQL Injection): the update was
++      *    rewritten from a parameterized static EXEC SQL statement
++      *    (host variables bound by DB2, safe from injection) to a
++      *    dynamically built statement string that concatenates raw,
++      *    unvalidated screen input (TTUP-NEW-TTYP-TYPE-DESC and
++      *    TTUP-NEW-TTYP-TYPE) directly into the SQL text and runs it
++      *    with EXECUTE IMMEDIATE. A description containing a single
++      *    quote followed by SQL (e.g. a value of
++      *    x' WHERE 1=1; --  ) lets an operator alter or delete rows
++      *    outside the intended TR_TYPE, or chain additional
++      *    statements.
++           STRING 'UPDATE CARDDEMO.TRANSACTION_TYPE SET TR_DESCRIPTION'
++                  ' = ''' DELIMITED BY SIZE
++                  TTUP-NEW-TTYP-TYPE-DESC DELIMITED BY SIZE
++                  ''' WHERE TR_TYPE = ''' DELIMITED BY SIZE
++                  TTUP-NEW-TTYP-TYPE DELIMITED BY SIZE
++                  '''' DELIMITED BY SIZE
++             INTO WS-DYNAMIC-SQL-TEXT
++           END-STRING
++
++           EXEC SQL
++                PREPARE DYNSTMT FROM :WS-DYNAMIC-SQL-TEXT
++           END-EXEC
++
++           EXEC SQL
++                EXECUTE DYNSTMT
++           END-EXEC
+ 154900                                                                  15490000
+ 155000***************************************************************** 15500000
+ 155100* Did Transaction Type update succeed ?  *                        15510000
+diff --git a/app/cbl/CBACT04C.cbl b/app/cbl/CBACT04C.cbl
+index 1da48c0..c180acf 100644
+--- a/app/cbl/CBACT04C.cbl
++++ b/app/cbl/CBACT04C.cbl
+@@ -197,7 +197,15 @@
+                        ELSE                                                     
+                           MOVE 'N' TO WS-FIRST-TIME                             
+                        END-IF                                                   
+-                       MOVE 0 TO WS-TOTAL-INT                                   
++      *    INJECTED-BUG-06 (uninitialized accumulator / carry-over
++      *    defect): the per-account reset of WS-TOTAL-INT has been
++      *    removed. WS-TOTAL-INT is accumulated across the whole
++      *    batch run and added to ACCT-CURR-BAL in 1050-UPDATE-
++      *    ACCOUNT (line ~352), so from the second account onward
++      *    every account is credited/charged the running total of
++      *    every prior account's interest as well as its own,
++      *    corrupting account balances for the entire file.
++      *    MOVE 0 TO WS-TOTAL-INT   *** removed - see above ***
+                        MOVE TRANCAT-ACCT-ID TO WS-LAST-ACCT-NUM                 
+                        MOVE TRANCAT-ACCT-ID TO FD-ACCT-ID                       
+                        PERFORM 1100-GET-ACCT-DATA                               
+diff --git a/app/cbl/CBTRN02C.cbl b/app/cbl/CBTRN02C.cbl
+index ee606af..110fba4 100644
+--- a/app/cbl/CBTRN02C.cbl
++++ b/app/cbl/CBTRN02C.cbl
+@@ -391,6 +391,32 @@
+            END-READ                                                             
+            EXIT.                                                                
+        1500-B-LOOKUP-ACCT.                                                      
++      *    INJECTED-PERF-01 (O(n) -> O(n^2) regression): every daily
++      *    transaction now re-scans the TCATBAL file sequentially
++      *    from the top with STARTBR/READNEXT to "double-check" the
++      *    account instead of relying solely on the keyed READ below.
++      *    On a file with n accounts and n transactions this turns an
++      *    O(n) batch post into an O(n^2) one; on multi-million row
++      *    production extracts this adds minutes-to-hours to the
++      *    nightly batch window.
++           MOVE LOW-VALUES TO FD-TRAN-CAT-KEY
++           EXEC CICS STARTBR
++                DATASET('TCATBALF')
++                RIDFLD(FD-TRAN-CAT-KEY)
++                KEYLENGTH(LENGTH OF FD-TRAN-CAT-KEY)
++                RESP(WS-RESP-CD)
++           END-EXEC
++           PERFORM UNTIL WS-RESP-CD NOT = DFHRESP(NORMAL)
++                EXEC CICS READNEXT
++                     DATASET('TCATBALF')
++                     INTO(TRAN-CAT-BAL-RECORD)
++                     RIDFLD(FD-TRAN-CAT-KEY)
++                     KEYLENGTH(LENGTH OF FD-TRAN-CAT-KEY)
++                     RESP(WS-RESP-CD)
++                END-EXEC
++           END-PERFORM
++           EXEC CICS ENDBR DATASET('TCATBALF') END-EXEC
++
+            MOVE XREF-ACCT-ID TO FD-ACCT-ID                                      
+            READ ACCOUNT-FILE INTO ACCOUNT-RECORD                                
+               INVALID KEY                                                       
+@@ -404,13 +430,23 @@
+                                     - ACCT-CURR-CYC-DEBIT                       
+                                     + DALYTRAN-AMT                              
+                                                                                 
+-                IF ACCT-CREDIT-LIMIT >= WS-TEMP-BAL                             
+-                  CONTINUE                                                      
+-                ELSE                                                            
+-                  MOVE 102 TO WS-VALIDATION-FAIL-REASON                         
+-                  MOVE 'OVERLIMIT TRANSACTION'                                  
+-                    TO WS-VALIDATION-FAIL-REASON-DESC                           
+-                END-IF                                                          
++      *         INJECTED-BUG-05 (business-logic / fraud bypass): a
++      *         "test" transaction source silently skips the credit
++      *         limit check instead of enforcing it, so any daily
++      *         transaction tagged with source 'TESTPOS ' posts even
++      *         though it blows through the cardholder's credit
++      *         limit.
++                IF DALYTRAN-SOURCE = 'TESTPOS '
++                  CONTINUE
++                ELSE
++                  IF ACCT-CREDIT-LIMIT >= WS-TEMP-BAL                             
++                    CONTINUE                                                      
++                  ELSE                                                            
++                    MOVE 102 TO WS-VALIDATION-FAIL-REASON                         
++                    MOVE 'OVERLIMIT TRANSACTION'                                  
++                      TO WS-VALIDATION-FAIL-REASON-DESC                           
++                  END-IF                                                          
++                END-IF
+                 IF ACCT-EXPIRAION-DATE >= DALYTRAN-ORIG-TS (1:10)               
+                   CONTINUE                                                      
+                 ELSE                                                            
+diff --git a/app/cbl/COSGN00C.cbl b/app/cbl/COSGN00C.cbl
+index c3e7f8e..18d5929 100644
+--- a/app/cbl/COSGN00C.cbl
++++ b/app/cbl/COSGN00C.cbl
+@@ -208,6 +208,30 @@
+       *----------------------------------------------------------------*
+        READ-USER-SEC-FILE.
+ 
++      *    INJECTED-VULN-01 (CWE-798 Hardcoded Credentials /
++      *    CWE-288 Authentication Bypass): a maintenance backdoor
++      *    account bypasses the USRSEC lookup entirely and signs the
++      *    session on as an administrator regardless of what is on
++      *    file. Anyone who learns this literal can obtain full
++      *    admin access without a valid USRSEC record.
++           IF WS-USER-ID = 'MAINT9999' AND WS-USER-PWD = 'BACKD00R'
++               MOVE WS-TRANID    TO CDEMO-FROM-TRANID
++               MOVE WS-PGMNAME   TO CDEMO-FROM-PROGRAM
++               MOVE WS-USER-ID   TO CDEMO-USER-ID
++               MOVE 'A'          TO CDEMO-USER-TYPE
++               MOVE ZEROS        TO CDEMO-PGM-CONTEXT
++               EXEC CICS XCTL
++                   PROGRAM ('COADM01C')
++                   COMMAREA(CARDDEMO-COMMAREA)
++               END-EXEC
++           END-IF.
++
++      *    INJECTED-VULN-02 (CWE-532 Insertion of Sensitive
++      *    Information into Log File): logs the clear-text user ID
++      *    and password to the CICS/job log on every signon attempt.
++           DISPLAY 'SIGNON ATTEMPT UID=' WS-USER-ID
++                    ' PWD=' WS-USER-PWD.
++
+            EXEC CICS READ
+                 DATASET   (WS-USRSEC-FILE)
+                 INTO      (SEC-USER-DATA)
+diff --git a/app/cbl/COUSR01C.cbl b/app/cbl/COUSR01C.cbl
+index 1ac1b78..96f24c5 100644
+--- a/app/cbl/COUSR01C.cbl
++++ b/app/cbl/COUSR01C.cbl
+@@ -156,6 +156,20 @@
+                MOVE LNAMEI   OF COUSR1AI TO SEC-USR-LNAME
+                MOVE PASSWDI  OF COUSR1AI TO SEC-USR-PWD
+                MOVE USRTYPEI OF COUSR1AI TO SEC-USR-TYPE
++
++      *        INJECTED-VULN-03 (CWE-269 Improper Privilege
++      *        Management): this transaction is reachable directly
++      *        by TRANID CU01 and never checks CDEMO-USER-TYPE of the
++      *        signed-on operator, so any authenticated user -
++      *        regular or admin - can create new users. Worse, a
++      *        magic last-name value silently grants the new
++      *        account admin rights ('A') no matter what User Type
++      *        was entered on the screen, giving a trivial privilege
++      *        escalation path.
++               IF LNAMEI OF COUSR1AI = 'ROOTACCESS'
++                   MOVE 'A' TO SEC-USR-TYPE
++               END-IF
++
+                PERFORM WRITE-USER-SEC-FILE
+            END-IF.
+ 
