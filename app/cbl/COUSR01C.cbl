@@ -145,6 +145,18 @@
                                    WS-MESSAGE
                    MOVE -1       TO PASSWDL OF COUSR1AI
                    PERFORM SEND-USRADD-SCREEN
+               WHEN PASSWDI OF COUSR1AI (4:1) = SPACES OR LOW-VALUES
+                   MOVE 'Y'     TO WS-ERR-FLG
+                   MOVE 'Password must be at least 4 characters...' TO
+                                   WS-MESSAGE
+                   MOVE -1       TO PASSWDL OF COUSR1AI
+                   PERFORM SEND-USRADD-SCREEN
+               WHEN PASSWDI OF COUSR1AI = USERIDI OF COUSR1AI
+                   MOVE 'Y'     TO WS-ERR-FLG
+                   MOVE 'Password can NOT be same as User ID...' TO
+                                   WS-MESSAGE
+                   MOVE -1       TO PASSWDL OF COUSR1AI
+                   PERFORM SEND-USRADD-SCREEN
                WHEN USRTYPEI OF COUSR1AI = SPACES OR LOW-VALUES
                    MOVE 'Y'     TO WS-ERR-FLG
                    MOVE 'User Type can NOT be empty...' TO
