@@ -410,16 +410,12 @@
       *         transaction tagged with source 'TESTPOS ' posts even
       *         though it blows through the cardholder's credit
       *         limit.
-                IF DALYTRAN-SOURCE = 'TESTPOS '
-                  CONTINUE
-                ELSE
-                  IF ACCT-CREDIT-LIMIT >= WS-TEMP-BAL                             
-                    CONTINUE                                                      
-                  ELSE                                                            
-                    MOVE 102 TO WS-VALIDATION-FAIL-REASON                         
-                    MOVE 'OVERLIMIT TRANSACTION'                                  
-                      TO WS-VALIDATION-FAIL-REASON-DESC                           
-                  END-IF                                                          
+                IF ACCT-CREDIT-LIMIT >= WS-TEMP-BAL                             
+                  CONTINUE                                                      
+                ELSE                                                            
+                  MOVE 102 TO WS-VALIDATION-FAIL-REASON                         
+                  MOVE 'OVERLIMIT TRANSACTION'                                  
+                    TO WS-VALIDATION-FAIL-REASON-DESC                           
                 END-IF
                 IF ACCT-EXPIRAION-DATE >= DALYTRAN-ORIG-TS (1:10)               
                   CONTINUE                                                      
