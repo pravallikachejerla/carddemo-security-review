@@ -115,6 +115,12 @@
        PROCESS-ENTER-KEY.
 
            EVALUATE TRUE
+               WHEN NOT CDEMO-USRTYP-ADMIN
+                   MOVE 'Y'     TO WS-ERR-FLG
+                   MOVE 'Only admin users can add new users...' TO
+                                   WS-MESSAGE
+                   MOVE -1       TO FNAMEL OF COUSR1AI
+                   PERFORM SEND-USRADD-SCREEN
                WHEN FNAMEI OF COUSR1AI = SPACES OR LOW-VALUES
                    MOVE 'Y'     TO WS-ERR-FLG
                    MOVE 'First Name can NOT be empty...' TO
@@ -156,19 +162,6 @@
                MOVE LNAMEI   OF COUSR1AI TO SEC-USR-LNAME
                MOVE PASSWDI  OF COUSR1AI TO SEC-USR-PWD
                MOVE USRTYPEI OF COUSR1AI TO SEC-USR-TYPE
-
-      *        INJECTED-VULN-03 (CWE-269 Improper Privilege
-      *        Management): this transaction is reachable directly
-      *        by TRANID CU01 and never checks CDEMO-USER-TYPE of the
-      *        signed-on operator, so any authenticated user -
-      *        regular or admin - can create new users. Worse, a
-      *        magic last-name value silently grants the new
-      *        account admin rights ('A') no matter what User Type
-      *        was entered on the screen, giving a trivial privilege
-      *        escalation path.
-               IF LNAMEI OF COUSR1AI = 'ROOTACCESS'
-                   MOVE 'A' TO SEC-USR-TYPE
-               END-IF
 
                PERFORM WRITE-USER-SEC-FILE
            END-IF.
