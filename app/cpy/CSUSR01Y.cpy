@@ -20,7 +20,8 @@
          05 SEC-USR-LNAME              PIC X(20).
          05 SEC-USR-PWD                PIC X(08).
          05 SEC-USR-TYPE               PIC X(01).
-         05 SEC-USR-FILLER             PIC X(23).
+         05 SEC-USR-FILLER             PIC X(21).
+         05 SEC-USR-FAILED-COUNT       PIC 9(02).
       *
       * Ver: CardDemo_v1.0-15-g27d6c6f-68 Date: 2022-07-19 23:15:59 CDT
       *
