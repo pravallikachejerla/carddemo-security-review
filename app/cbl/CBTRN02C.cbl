@@ -391,32 +391,6 @@
            END-READ                                                             
            EXIT.                                                                
        1500-B-LOOKUP-ACCT.                                                      
-      *    INJECTED-PERF-01 (O(n) -> O(n^2) regression): every daily
-      *    transaction now re-scans the TCATBAL file sequentially
-      *    from the top with STARTBR/READNEXT to "double-check" the
-      *    account instead of relying solely on the keyed READ below.
-      *    On a file with n accounts and n transactions this turns an
-      *    O(n) batch post into an O(n^2) one; on multi-million row
-      *    production extracts this adds minutes-to-hours to the
-      *    nightly batch window.
-           MOVE LOW-VALUES TO FD-TRAN-CAT-KEY
-           EXEC CICS STARTBR
-                DATASET('TCATBALF')
-                RIDFLD(FD-TRAN-CAT-KEY)
-                KEYLENGTH(LENGTH OF FD-TRAN-CAT-KEY)
-                RESP(WS-RESP-CD)
-           END-EXEC
-           PERFORM UNTIL WS-RESP-CD NOT = DFHRESP(NORMAL)
-                EXEC CICS READNEXT
-                     DATASET('TCATBALF')
-                     INTO(TRAN-CAT-BAL-RECORD)
-                     RIDFLD(FD-TRAN-CAT-KEY)
-                     KEYLENGTH(LENGTH OF FD-TRAN-CAT-KEY)
-                     RESP(WS-RESP-CD)
-                END-EXEC
-           END-PERFORM
-           EXEC CICS ENDBR DATASET('TCATBALF') END-EXEC
-
            MOVE XREF-ACCT-ID TO FD-ACCT-ID                                      
            READ ACCOUNT-FILE INTO ACCOUNT-RECORD                                
               INVALID KEY                                                       
