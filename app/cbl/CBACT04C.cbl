@@ -516,7 +516,9 @@
                                                                                 
       *---------------------------------------------------------------*         
        1400-COMPUTE-FEES.                                                       
-      * To be implemented                                                       
+      * Fee calculation gap logged for operations and reconciliation              
+           DISPLAY 'WARNING: FEE CALCULATION SKIPPED IN 1400-COMPUTE-FEES '
+                   'FOR ACCT ' ACCT-ID ' RUN-DATE ' PARM-DATE
            EXIT.                                                                
       *---------------------------------------------------------------*         
        9000-TCATBALF-CLOSE.                                                     
