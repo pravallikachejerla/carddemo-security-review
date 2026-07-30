@@ -253,7 +253,7 @@
       *---------------------------------------------------------------*         
        0100-TRANFILE-OPEN.                                                      
            MOVE 8 TO APPL-RESULT.                                               
-           OPEN OUTPUT TRANSACT-FILE                                            
+           OPEN EXTEND TRANSACT-FILE                                            
            IF  TRANFILE-STATUS = '00'                                           
                MOVE 0 TO APPL-RESULT                                            
            ELSE                                                                 
