@@ -239,10 +239,33 @@
                             END-EXEC
                        END-IF
                    ELSE
-                       MOVE 'Invalid User ID or Password ...' TO
-                                                          WS-MESSAGE
-                       MOVE -1       TO PASSWDL OF COSGN0AI
-                       PERFORM SEND-SIGNON-SCREEN
+                       ADD 1 TO SEC-USR-FAILED-COUNT
+
+                       EXEC CICS REWRITE
+                            DATASET   (WS-USRSEC-FILE)
+                            FROM      (SEC-USER-DATA)
+                            LENGTH    (LENGTH OF SEC-USER-DATA)
+                            RESP      (WS-RESP-CD)
+                            RESP2     (WS-REAS-CD)
+                       END-EXEC
+
+                       EVALUATE WS-RESP-CD
+                           WHEN 0
+                               IF SEC-USR-FAILED-COUNT >= 5
+                                   MOVE 'Invalid User ID or Password ...'
+                                                          TO WS-MESSAGE
+                               ELSE
+                                   MOVE 'Wrong Password...' TO WS-MESSAGE
+                               END-IF
+                               MOVE -1       TO PASSWDL OF COSGN0AI
+                               PERFORM SEND-SIGNON-SCREEN
+                           WHEN OTHER
+                               MOVE 'Y'      TO WS-ERR-FLG
+                               MOVE 'Unable to verify the User ...'
+                                                           TO WS-MESSAGE
+                               MOVE -1       TO USERIDL OF COSGN0AI
+                               PERFORM SEND-SIGNON-SCREEN
+                       END-EVALUATE
                    END-IF
                WHEN 13
                    MOVE 'Y'      TO WS-ERR-FLG
