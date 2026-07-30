@@ -197,15 +197,7 @@
                        ELSE                                                     
                           MOVE 'N' TO WS-FIRST-TIME                             
                        END-IF                                                   
-      *    INJECTED-BUG-06 (uninitialized accumulator / carry-over
-      *    defect): the per-account reset of WS-TOTAL-INT has been
-      *    removed. WS-TOTAL-INT is accumulated across the whole
-      *    batch run and added to ACCT-CURR-BAL in 1050-UPDATE-
-      *    ACCOUNT (line ~352), so from the second account onward
-      *    every account is credited/charged the running total of
-      *    every prior account's interest as well as its own,
-      *    corrupting account balances for the entire file.
-      *    MOVE 0 TO WS-TOTAL-INT   *** removed - see above ***
+                       MOVE 0 TO WS-TOTAL-INT                                   
                        MOVE TRANCAT-ACCT-ID TO WS-LAST-ACCT-NUM                 
                        MOVE TRANCAT-ACCT-ID TO FD-ACCT-ID                       
                        PERFORM 1100-GET-ACCT-DATA                               
