@@ -239,14 +239,14 @@
                             END-EXEC
                        END-IF
                    ELSE
-                       MOVE 'Wrong Password. Try again ...' TO
+                       MOVE 'Invalid User ID or Password ...' TO
                                                           WS-MESSAGE
                        MOVE -1       TO PASSWDL OF COSGN0AI
                        PERFORM SEND-SIGNON-SCREEN
                    END-IF
                WHEN 13
                    MOVE 'Y'      TO WS-ERR-FLG
-                   MOVE 'User not found. Try again ...' TO WS-MESSAGE
+                   MOVE 'Invalid User ID or Password ...' TO WS-MESSAGE
                    MOVE -1       TO USERIDL OF COSGN0AI
                    PERFORM SEND-SIGNON-SCREEN
                WHEN OTHER
