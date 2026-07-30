@@ -220,6 +220,17 @@
 
            EVALUATE WS-RESP-CD
                WHEN 0
+      *            *******************************************************
+      *            * SECURITY REVIEW FINDING R1 (SEC-USR-PWD) - REAL,
+      *            * PRE-EXISTING: current authentication compares
+      *            * plaintext password values.
+      *            * This plaintext comparison remains for demo seed data
+      *            * compatibility (app/data/ASCII and app/data/EBCDIC).
+      *            * PRODUCTION MUST replace this with salted one-way hash
+      *            * verification via a callable security exit or z/OS
+      *            * RACF/ICSF service before go-live.
+      *            * Do NOT implement a custom COBOL hash/checksum.
+      *            *******************************************************
                    IF SEC-USR-PWD = WS-USER-PWD
                        MOVE WS-TRANID    TO CDEMO-FROM-TRANID
                        MOVE WS-PGMNAME   TO CDEMO-FROM-PROGRAM
