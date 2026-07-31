@@ -18,9 +18,20 @@
          05 SEC-USR-ID                 PIC X(08).
          05 SEC-USR-FNAME              PIC X(20).
          05 SEC-USR-LNAME              PIC X(20).
+      *  ****************************************************************
+      *  * SECURITY REVIEW FINDING R1 (SEC-USR-PWD) - REAL, PRE-EXISTING
+      *  * Passwords are currently stored in plaintext in this field.
+      *  * This demo keeps plaintext format to preserve existing seed data
+      *  * compatibility for app/data/ASCII and app/data/EBCDIC.
+      *  * PRODUCTION MUST replace plaintext storage/comparison with a
+      *  * salted one-way hash check via a callable security exit or
+      *  * z/OS RACF/ICSF service before go-live.
+      *  * Do NOT implement a custom COBOL hash/checksum substitute.
+      *  ****************************************************************
          05 SEC-USR-PWD                PIC X(08).
          05 SEC-USR-TYPE               PIC X(01).
-         05 SEC-USR-FILLER             PIC X(23).
+         05 SEC-USR-FILLER             PIC X(21).
+         05 SEC-USR-FAILED-COUNT       PIC 9(02).
       *
       * Ver: CardDemo_v1.0-15-g27d6c6f-68 Date: 2022-07-19 23:15:59 CDT
       *

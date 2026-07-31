@@ -6,6 +6,14 @@ then
   exit 
 fi
 
+# Security Review R9 note:
+# This script uses tnftp over the local tunnel entry point (localhost:2121),
+# which means this client-to-local-port hop is plaintext FTP traffic.
+# That plaintext exposure exists regardless of how the tunnel itself is
+# configured. Before production use, confirm the tunnel terminates TLS/SSH
+# properly end-to-end and evaluate whether the remote endpoint can be moved
+# from plain FTP-in-tunnel to SFTP/FTPS.
+
 # # Make will ensure the latest modules are uploaded to mainframe
 pwd
 make -f Makefile

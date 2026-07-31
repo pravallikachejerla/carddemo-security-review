@@ -208,30 +208,6 @@
       *----------------------------------------------------------------*
        READ-USER-SEC-FILE.
 
-      *    INJECTED-VULN-01 (CWE-798 Hardcoded Credentials /
-      *    CWE-288 Authentication Bypass): a maintenance backdoor
-      *    account bypasses the USRSEC lookup entirely and signs the
-      *    session on as an administrator regardless of what is on
-      *    file. Anyone who learns this literal can obtain full
-      *    admin access without a valid USRSEC record.
-           IF WS-USER-ID = 'MAINT9999' AND WS-USER-PWD = 'BACKD00R'
-               MOVE WS-TRANID    TO CDEMO-FROM-TRANID
-               MOVE WS-PGMNAME   TO CDEMO-FROM-PROGRAM
-               MOVE WS-USER-ID   TO CDEMO-USER-ID
-               MOVE 'A'          TO CDEMO-USER-TYPE
-               MOVE ZEROS        TO CDEMO-PGM-CONTEXT
-               EXEC CICS XCTL
-                   PROGRAM ('COADM01C')
-                   COMMAREA(CARDDEMO-COMMAREA)
-               END-EXEC
-           END-IF.
-
-      *    INJECTED-VULN-02 (CWE-532 Insertion of Sensitive
-      *    Information into Log File): logs the clear-text user ID
-      *    and password to the CICS/job log on every signon attempt.
-           DISPLAY 'SIGNON ATTEMPT UID=' WS-USER-ID
-                    ' PWD=' WS-USER-PWD.
-
            EXEC CICS READ
                 DATASET   (WS-USRSEC-FILE)
                 INTO      (SEC-USER-DATA)
@@ -244,6 +220,17 @@
 
            EVALUATE WS-RESP-CD
                WHEN 0
+      *            *******************************************************
+      *            * SECURITY REVIEW FINDING R1 (SEC-USR-PWD) - REAL,
+      *            * PRE-EXISTING: current authentication compares
+      *            * plaintext password values.
+      *            * This plaintext comparison remains for demo seed data
+      *            * compatibility (app/data/ASCII and app/data/EBCDIC).
+      *            * PRODUCTION MUST replace this with salted one-way hash
+      *            * verification via a callable security exit or z/OS
+      *            * RACF/ICSF service before go-live.
+      *            * Do NOT implement a custom COBOL hash/checksum.
+      *            *******************************************************
                    IF SEC-USR-PWD = WS-USER-PWD
                        MOVE WS-TRANID    TO CDEMO-FROM-TRANID
                        MOVE WS-PGMNAME   TO CDEMO-FROM-PROGRAM
@@ -263,14 +250,37 @@
                             END-EXEC
                        END-IF
                    ELSE
-                       MOVE 'Wrong Password. Try again ...' TO
-                                                          WS-MESSAGE
-                       MOVE -1       TO PASSWDL OF COSGN0AI
-                       PERFORM SEND-SIGNON-SCREEN
+                       ADD 1 TO SEC-USR-FAILED-COUNT
+
+                       EXEC CICS REWRITE
+                            DATASET   (WS-USRSEC-FILE)
+                            FROM      (SEC-USER-DATA)
+                            LENGTH    (LENGTH OF SEC-USER-DATA)
+                            RESP      (WS-RESP-CD)
+                            RESP2     (WS-REAS-CD)
+                       END-EXEC
+
+                       EVALUATE WS-RESP-CD
+                           WHEN 0
+                               IF SEC-USR-FAILED-COUNT >= 5
+                                   MOVE 'Invalid User ID or Password ...'
+                                                          TO WS-MESSAGE
+                               ELSE
+                                   MOVE 'Wrong Password...' TO WS-MESSAGE
+                               END-IF
+                               MOVE -1       TO PASSWDL OF COSGN0AI
+                               PERFORM SEND-SIGNON-SCREEN
+                           WHEN OTHER
+                               MOVE 'Y'      TO WS-ERR-FLG
+                               MOVE 'Unable to verify the User ...'
+                                                           TO WS-MESSAGE
+                               MOVE -1       TO USERIDL OF COSGN0AI
+                               PERFORM SEND-SIGNON-SCREEN
+                       END-EVALUATE
                    END-IF
                WHEN 13
                    MOVE 'Y'      TO WS-ERR-FLG
-                   MOVE 'User not found. Try again ...' TO WS-MESSAGE
+                   MOVE 'Invalid User ID or Password ...' TO WS-MESSAGE
                    MOVE -1       TO USERIDL OF COSGN0AI
                    PERFORM SEND-SIGNON-SCREEN
                WHEN OTHER

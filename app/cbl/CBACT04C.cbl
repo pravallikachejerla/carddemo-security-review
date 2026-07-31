@@ -197,15 +197,7 @@
                        ELSE                                                     
                           MOVE 'N' TO WS-FIRST-TIME                             
                        END-IF                                                   
-      *    INJECTED-BUG-06 (uninitialized accumulator / carry-over
-      *    defect): the per-account reset of WS-TOTAL-INT has been
-      *    removed. WS-TOTAL-INT is accumulated across the whole
-      *    batch run and added to ACCT-CURR-BAL in 1050-UPDATE-
-      *    ACCOUNT (line ~352), so from the second account onward
-      *    every account is credited/charged the running total of
-      *    every prior account's interest as well as its own,
-      *    corrupting account balances for the entire file.
-      *    MOVE 0 TO WS-TOTAL-INT   *** removed - see above ***
+                       MOVE 0 TO WS-TOTAL-INT                                   
                        MOVE TRANCAT-ACCT-ID TO WS-LAST-ACCT-NUM                 
                        MOVE TRANCAT-ACCT-ID TO FD-ACCT-ID                       
                        PERFORM 1100-GET-ACCT-DATA                               
@@ -469,7 +461,7 @@
       *---------------------------------------------------------------*         
        1300-COMPUTE-INTEREST.                                                   
                                                                                 
-           COMPUTE WS-MONTHLY-INT                                               
+           COMPUTE WS-MONTHLY-INT ROUNDED                                       
             = ( TRAN-CAT-BAL * DIS-INT-RATE) / 1200                             
                                                                                 
            ADD WS-MONTHLY-INT  TO WS-TOTAL-INT                                  
@@ -524,7 +516,9 @@
                                                                                 
       *---------------------------------------------------------------*         
        1400-COMPUTE-FEES.                                                       
-      * To be implemented                                                       
+      * Fee calculation gap logged for operations and reconciliation              
+           DISPLAY 'WARNING: FEE CALCULATION SKIPPED IN 1400-COMPUTE-FEES '
+                   'FOR ACCT ' ACCT-ID ' RUN-DATE ' PARM-DATE
            EXIT.                                                                
       *---------------------------------------------------------------*         
        9000-TCATBALF-CLOSE.                                                     
