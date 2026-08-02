@@ -31,9 +31,7 @@
 003100                                                                  00310000
 003200 DATA DIVISION.                                                   00320000
 003300                                                                  00330000
-003400 WORKING-STORAGE SECTION.                                         00340000
-003450 01  WS-DYNAMIC-SQL-TEXT                    PIC X(200).
-003500 01  WS-MISC-STORAGE.                                             00350000
+
 003600******************************************************************00360000
 003700* General CICS related                                            00370000
 003800******************************************************************00380000
@@ -1539,41 +1537,7 @@
 153800     MOVE TTUP-NEW-TTYP-TYPE TO DCL-TR-TYPE                       15380000
 153900     MOVE FUNCTION TRIM(TTUP-NEW-TTYP-TYPE-DESC)                  15390000
 154000                             TO DCL-TR-DESCRIPTION-TEXT           15400000
-154100     COMPUTE DCL-TR-DESCRIPTION-LEN                               15410000
-154200      = FUNCTION LENGTH(TTUP-NEW-TTYP-TYPE-DESC)                  15420000
-154300                                                                  15430000
-      *    INJECTED-VULN-04 (CWE-89 SQL Injection): the update was
-      *    rewritten from a parameterized static EXEC SQL statement
-      *    (host variables bound by DB2, safe from injection) to a
-      *    dynamically built statement string that concatenates raw,
-      *    unvalidated screen input (TTUP-NEW-TTYP-TYPE-DESC and
-      *    TTUP-NEW-TTYP-TYPE) directly into the SQL text and runs it
-      *    with EXECUTE IMMEDIATE. A description containing a single
-      *    quote followed by SQL (e.g. a value of
-      *    x' WHERE 1=1; --  ) lets an operator alter or delete rows
-      *    outside the intended TR_TYPE, or chain additional
-      *    statements.
-           STRING 'UPDATE CARDDEMO.TRANSACTION_TYPE SET TR_DESCRIPTION'
-                  ' = ''' DELIMITED BY SIZE
-                  TTUP-NEW-TTYP-TYPE-DESC DELIMITED BY SIZE
-                  ''' WHERE TR_TYPE = ''' DELIMITED BY SIZE
-                  TTUP-NEW-TTYP-TYPE DELIMITED BY SIZE
-                  '''' DELIMITED BY SIZE
-             INTO WS-DYNAMIC-SQL-TEXT
-           END-STRING
 
-           EXEC SQL
-                PREPARE DYNSTMT FROM :WS-DYNAMIC-SQL-TEXT
-           END-EXEC
-
-           EXEC SQL
-                EXECUTE DYNSTMT
-           END-EXEC
-154900                                                                  15490000
-155000***************************************************************** 15500000
-155100* Did Transaction Type update succeed ?  *                        15510000
-155200***************************************************************** 15520000
-155300     MOVE SQLCODE                       TO WS-DISP-SQLCODE        15530000
 155400                                                                  15540000
 155500     EVALUATE TRUE                                                15550000
 155600         WHEN SQLCODE = ZERO                                      15560000

