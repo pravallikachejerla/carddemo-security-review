@@ -4,8 +4,6 @@
 **Base**: Fork of [aws-samples/aws-mainframe-modernization-carddemo](https://github.com/aws-samples/aws-mainframe-modernization-carddemo)  
 **Purpose**: Training exercise containing the full CardDemo mainframe application (COBOL, CICS, BMS, IMS, DB2, VSAM, JCL, Assembler) with **7 deliberately injected issues** (tagged `INJECTED-*`) plus documentation of **9 real upstream issues** (R1–R9) from the original sample.
 
-**Generated**: 2026-08-02 (by autonomous analysis agent)  
-**Branch**: `genesis/fe2480d4-33d3-4741-aa71-3c4d87a2f52d-proj-repo-pravallikachejerla-carddemo-security-review`
 
 ---
 
