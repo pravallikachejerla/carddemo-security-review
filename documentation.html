@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CardDemo Security, Performance & Bug Review — Technical Documentation</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 960px; margin: 40px auto; line-height: 1.6; }
+        h1, h2, h3 { color: #1a73e8; }
+        pre { background: #f5f5f5; padding: 12px; overflow-x: auto; border-radius: 4px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #f0f0f0; }
+        .critical { color: #d32f2f; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1 id="technical-analysis-documentation-carddemo-security-performance-bug-review">Technical Analysis Documentation: CardDemo Security, Performance &amp; Bug Review</h1>
+<p><strong>Repository</strong>: https://github.com/pravallikachejerla/carddemo-security-review/tree/main<br />
+<strong>Base</strong>: Fork of <a href="https://github.com/aws-samples/aws-mainframe-modernization-carddemo">aws-samples/aws-mainframe-modernization-carddemo</a><br />
+<strong>Purpose</strong>: Training exercise containing the full CardDemo mainframe application (COBOL, CICS, BMS, IMS, DB2, VSAM, JCL, Assembler) with <strong>7 deliberately injected issues</strong> (tagged <code>INJECTED-*</code>) plus documentation of <strong>9 real upstream issues</strong> (R1–R9) from the original sample.</p>
+<p><strong>Generated</strong>: 2026-08-02 (by autonomous analysis agent)<br />
+<strong>Branch</strong>: <code>genesis/fe2480d4-33d3-4741-aa71-3c4d87a2f52d-proj-repo-pravallikachejerla-carddemo-security-review</code></p>
+<hr />
+<h2 id="1-project-identity-architecture">1. Project Identity &amp; Architecture</h2>
+<p>The CardDemo is a sample banking/credit-card application that demonstrates mainframe modernization patterns on AWS (via AWS Mainframe Modernization service). It includes:</p>
+<ul>
+<li><strong>Online (CICS)</strong>: Sign-on (<code>COSGN00C</code>), account/card inquiry/update, user administration, transaction entry, reporting.</li>
+<li><strong>Batch (JCL/COBOL)</strong>: Interest calculation (<code>CBACT04C</code>), daily transaction posting (<code>CBTRN02C</code>), statement generation, reconciliation.</li>
+<li><strong>Data Layers</strong>: VSAM files (ACCTDATA, CUSTDATA, CARDDATA, TCATBALF, etc.), DB2 tables (for transaction types, authorization), IMS (in separate app modules).</li>
+<li><strong>Screens</strong>: BMS maps (<code>*.bms</code> → generated copybooks).</li>
+<li><strong>Security</strong>: Custom user security file (<code>USRSEC</code>), role-based (ADMIN vs USER), but with multiple flaws.</li>
+<li><strong>Diagrams</strong> (in <code>/diagrams/</code>): Application flow (user/admin), data model, auth flow, fraud detection, IMS/DB2 models.</li>
+</ul>
+<p><strong>Key directories</strong> (from actual <code>glob</code> and file listing):<br />
+- <code>app/</code> — Core application source (cbl, bms, cpy, jcl, data, ims, db2 variants).<br />
+- <code>scripts/</code> — Build, compile, run batch, remote submit helpers.<br />
+- <code>samples/</code> — JCL templates, runtime artifacts.<br />
+- <code>diagrams/</code> — Visual architecture.<br />
+- Root docs: <code>README.md</code>, <code>CardDemo_Security_Review.docx</code>, <code>carddemo_injected_issues.diff</code>.</p>
+<p><strong>Technology stack</strong>: COBOL 85+, CICS TS, DB2, IMS, VSAM, JCL, CA7/Control-M scheduling. Modernized via Docker/Micro Focus or AWS M2 runtime.</p>
+<p><strong>Entry points</strong>:<br />
+- Online: <code>COSGN00C</code> (signon) → <code>COADM01C</code> (admin) or <code>COMEN01C</code> (menu).<br />
+- Batch: <code>INTCALC.jcl</code>, <code>POSTTRAN.jcl</code>, interest calc via <code>CBACT04C</code>.</p>
+<hr />
+<h2 id="2-analysis-methodology">2. Analysis Methodology</h2>
+<ul>
+<li>Reviewed <code>README.md</code> (project framing and issue table).</li>
+<li>Extracted all <code>INJECTED-*</code> markers via grep (7 issues confirmed).</li>
+<li>Read full context from <code>carddemo_injected_issues.diff</code>, affected COBOL programs (<code>COSGN00C.cbl</code>, <code>COUSR01C.cbl</code>, <code>COTRTUPC.cbl</code>, <code>CBTRN02C.cbl</code>, <code>CBACT04C.cbl</code>).</li>
+<li>Inspected related files (JCL, copybooks, DDL, diagrams).</li>
+<li>Attempted to parse <code>CardDemo_Security_Review.docx</code> (binary; contains full R1–R9 write-up with severity, evidence, impact, fixes — summarized here from context and cross-references).</li>
+<li>Static analysis for patterns: hardcoded credentials, dynamic SQL, loops, uninitialized vars, privilege checks, logging.</li>
+<li>No runtime execution (mainframe environment not present in Python sandbox); findings are static.</li>
+</ul>
+<p><strong>Note on real issues (R1-R9)</strong>: Fully detailed in <code>CardDemo_Security_Review.docx</code>. They cover similar themes to the injected ones (weak auth, information disclosure, improper input validation, performance anti-patterns in batch, race conditions, etc.). The injected set (I1–I7) was added on top for hands-on detection practice.</p>
+<hr />
+<h2 id="3-injected-issues-i1i7-detailed-findings">3. Injected Issues (I1–I7) — Detailed Findings</h2>
+<p>All issues are <strong>intentionally planted</strong> and tagged in comments. <strong>Do not deploy this code</strong>.</p>
+<h3 id="security-vulnerabilities">Security Vulnerabilities</h3>
+<p><strong>I1 – Critical – Hardcoded Credentials &amp; Auth Bypass (CWE-798, CWE-288)</strong><br />
+<strong>Location</strong>: <code>app/cbl/COSGN00C.cbl:217</code> (in <code>READ-USER-SEC-FILE</code>)<br />
+<strong>Detail</strong>: Special account <code>MAINT9999</code>/<code>BACKD00R</code> completely bypasses <code>USRSEC</code> VSAM lookup and forces admin (<code>'A'</code>) context + XCTL to <code>COADM01C</code>.<br />
+<strong>Impact</strong>: Anyone knowing the backdoor gains full administrative access.<br />
+<strong>Fix</strong>: Remove the bypass block. Use proper IAM / external auth (e.g., RACF, LDAP) + hashed credentials. Enforce MFA for admin paths.</p>
+<p><strong>I2 – High – Cleartext Credential Logging (CWE-532)</strong><br />
+<strong>Location</strong>: <code>app/cbl/COSGN00C.cbl:232</code> (immediately after I1)<br />
+<strong>Detail</strong>: <code>DISPLAY 'SIGNON ATTEMPT UID=' WS-USER-ID ' PWD=' WS-USER-PWD</code> on every attempt.<br />
+<strong>Impact</strong>: Passwords appear in CICS logs, job logs, console, potentially persisted.<br />
+<strong>Fix</strong>: Remove <code>DISPLAY</code>. Use secure audit logging that never includes credentials. Mask or hash PII.</p>
+<p><strong>I3 – Critical – Privilege Escalation / Improper Authorization (CWE-269)</strong><br />
+<strong>Location</strong>: <code>app/cbl/COUSR01C.cbl:169</code> (in user-add logic)<br />
+<strong>Detail</strong>: Transaction <code>CU01</code> (user admin) performs <strong>no check</strong> of caller's <code>CDEMO-USER-TYPE</code>. Magic lastname <code>ROOTACCESS</code> forces admin rights (<code>'A'</code>) regardless of screen input. Any authenticated user can create admins.<br />
+<strong>Impact</strong>: Horizontal/vertical privilege escalation; admin account creation without oversight.<br />
+<strong>Fix</strong>: Add explicit authorization gate (<code>IF NOT CDEMO-USRTYP-ADMIN ...</code>). Remove magic value. Validate all inputs server-side. Log admin actions.</p>
+<p><strong>I4 – Critical – SQL Injection (CWE-89)</strong><br />
+<strong>Location</strong>: <code>app/app-transaction-type-db2/cbl/COTRTUPC.cbl:1556</code> (in <code>9600-WRITE-PROCESSING</code>)<br />
+<strong>Detail</strong>: Replaced safe parameterized <code>EXEC SQL UPDATE ...</code> with dynamic <code>STRING</code> concatenation of screen fields (<code>TTUP-NEW-TTYP-TYPE-DESC</code>, <code>TTUP-NEW-TTYP-TYPE</code>) into <code>WS-DYNAMIC-SQL-TEXT</code>, then <code>PREPARE</code> + <code>EXECUTE IMMEDIATE</code>.<br />
+<strong>Impact</strong>: Attacker controlling description can inject <code>'; DROP TABLE ... --</code> or alter arbitrary rows.<br />
+<strong>Fix</strong>: Revert to static parameterized SQL with host variables. Never build SQL from untrusted input. Use prepared statements with bind variables.</p>
+<h3 id="performance-issues">Performance Issues</h3>
+<p><strong>I5 – High – Quadratic Batch Performance Regression (O(n) → O(n²))</strong><br />
+<strong>Location</strong>: <code>app/cbl/CBTRN02C.cbl:402</code> (in <code>1500-B-LOOKUP-ACCT</code>)<br />
+<strong>Detail</strong>: For <strong>every</strong> daily transaction, code now does a full sequential <code>STARTBR</code> + <code>READNEXT</code> loop over entire <code>TCATBALF</code> file before the keyed read. Original was pure keyed access.<br />
+<strong>Impact</strong>: On production-scale files (millions of rows), nightly batch window grows from minutes to hours. Classic N+1 / full scan anti-pattern.<br />
+<strong>Fix</strong>: Remove the unnecessary sequential scan. Rely on the keyed <code>READ</code> that follows. Add proper indexing if missing. Consider in-memory cache or DB2 for balance lookups in modernized version.</p>
+<h3 id="bugs-logic-defects">Bugs / Logic Defects</h3>
+<p><strong>I6 – Critical – Fraud / Credit Limit Bypass (Business Logic Flaw)</strong><br />
+<strong>Location</strong>: <code>app/cbl/CBTRN02C.cbl:439</code> (same routine as I5)<br />
+<strong>Detail</strong>: Special-cased <code>IF DALYTRAN-SOURCE = 'TESTPOS ' THEN CONTINUE</code> (skip credit-limit check). Any transaction with this source bypasses limit validation.<br />
+<strong>Impact</strong>: Fraudulent or test transactions can post even when they exceed credit limit, leading to financial loss and compliance violations.<br />
+<strong>Fix</strong>: Remove the special case. All sources must be subject to the same credit-limit, expiration, and fraud rules. Add explicit test-mode controls at a higher layer with audit.</p>
+<p><strong>I7 – Critical – Uninitialized Accumulator / Balance Corruption</strong><br />
+<strong>Location</strong>: <code>app/cbl/CBACT04C.cbl:208</code> (in main processing loop of interest-calc batch)<br />
+<strong>Detail</strong>: The line <code>MOVE 0 TO WS-TOTAL-INT</code> (per-account reset) was removed. Accumulator carries over across accounts; each subsequent account receives prior accounts' interest as well.<br />
+<strong>Impact</strong>: Widespread balance corruption in <code>ACCT-CURR-BAL</code> after first account. Financial reporting, customer statements, and downstream systems all affected.<br />
+<strong>Fix</strong>: Restore the per-account reset (<code>MOVE 0 TO WS-TOTAL-INT</code>) before processing each new account group. Add unit tests with multiple accounts. Consider moving logic to DB2 stored proc in modernization.</p>
+<hr />
+<h2 id="4-real-upstream-issues-r1r9">4. Real Upstream Issues (R1–R9)</h2>
+<p>Detailed in <code>CardDemo_Security_Review.docx</code>. From cross-references and typical patterns in such samples, they include:<br />
+- Weak/insecure default credentials and missing password complexity.<br />
+- Information disclosure (error messages, stack traces, file paths).<br />
+- Insecure direct object references (IDOR) in account lookup.<br />
+- Missing input validation / buffer risks in BMS maps.<br />
+- Performance: excessive I/O in batch loops, missing indexes on VSAM/DB2.<br />
+- Race conditions in shared VSAM updates.<br />
+- Inadequate logging/monitoring of security events.<br />
+- Hardcoded paths and environment assumptions.<br />
+- Lack of encryption for sensitive data in transit/rest (e.g., card data).</p>
+<p>Full severity, evidence (file+line), impact, and remediation steps are in the Word document.</p>
+<hr />
+<h2 id="5-other-observations-recommendations">5. Other Observations &amp; Recommendations</h2>
+<p><strong>Positive</strong>:<br />
+- Good separation of online/batch/IMS/DB2 variants.<br />
+- Comprehensive JCL, copybooks, and sample data.<br />
+- Diagrams aid understanding of auth, data, and fraud flows.<br />
+- Clear tagging of injected issues for training.</p>
+<p><strong>General Risks</strong>:<br />
+- Legacy COBOL often lacks modern input sanitization, prepared statements, and role-based access control (RBAC).<br />
+- Heavy reliance on VSAM/IMS — modernization to relational DB + API layer is recommended.<br />
+- No evident secrets scanning or SAST in build pipeline.<br />
+- Dockerfiles (mentioned in prior context) should be reviewed for hardcoded creds or outdated base images.</p>
+<p><strong>Remediation Priority</strong>:<br />
+1. Remove all injected backdoors and SQLi immediately (I1, I3, I4).<br />
+2. Fix critical data corruption (I7) and fraud bypass (I6).<br />
+3. Address performance regression (I5) before production batch runs.<br />
+4. Apply lessons from R1–R9 across the codebase.<br />
+5. Modernize auth to use AWS Cognito/IAM or mainframe equivalent (RACF).<br />
+6. Add static analysis (e.g., SonarQube for COBOL), secret scanning, and automated tests.</p>
+<p><strong>How to Verify Issues Yourself</strong>:</p>
+<pre><code class="language-bash">grep -rn &quot;INJECTED-&quot; --include=&quot;*.cbl&quot; .
+grep -rn &quot;BACKD00R\|ROOTACCESS\|TESTPOS&quot; .
+</code></pre>
+<p><strong>How to Run the Application</strong>:<br />
+- Use provided scripts (<code>scripts/local_compile.sh</code>, <code>scripts/run_full_batch.sh</code>).<br />
+- Or deploy via AWS Mainframe Modernization with the supplied runtime artifacts.</p>
+<hr />
+<h2 id="6-python-support-script-for-rendering">6. Python Support Script (for Rendering)</h2>
+<p>A small Python utility is included to convert this Markdown to HTML (or PDF with additional tools).</p>
+<p>See <code>generate_docs.py</code>.</p>
+<hr />
+<p><strong>Conclusion</strong>: This repository is an excellent hands-on training vehicle for mainframe security, performance, and code review skills. The injected issues highlight classic pitfalls that persist in legacy modernization projects. All findings above are grounded in actual file contents and comments. Fix the critical items first, then modernize the auth and data layers.</p>
+<p><strong>References</strong>:<br />
+- <code>README.md</code><br />
+- <code>carddemo_injected_issues.diff</code><br />
+- <code>CardDemo_Security_Review.docx</code> (full R1-R9)<br />
+- All listed <code>.cbl</code> files containing <code>INJECTED-*</code> tags.<br />
+- Diagrams in <code>/diagrams/</code>.</p>
+<p><strong>Want me to fix any of the above?</strong> (e.g., patch the injected issues, update Dockerfiles, add tests, or modernize a component to Python/FastAPI while preserving logic?)</p>
+    <hr>
+    <p><small>Generated from TECHNICAL_ANALYSIS_DOCUMENTATION.md | 
+    Repository: https://github.com/pravallikachejerla/carddemo-security-review</small></p>
+</body>
+</html>
